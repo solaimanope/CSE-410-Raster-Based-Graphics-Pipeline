@@ -88,56 +88,96 @@ int main() {
     double fovY, aspectRatio, near, far;
     sceneIn >> fovY >> aspectRatio >> near >> far;
 
-    stack< Matrix >stk;
-    stk.emplace();
+    {   // STAGE 1
+        stack< Matrix >stk;
+        stk.emplace();
 
-    string command;
-    ofstream stage1Out;
-    stage1Out.open(OUTPUT+"stage1.txt");
-    while (sceneIn >> command) {
-        if (command == "triangle") {
-            for (int i = 0; i < 3; i++) {
-                Point vertex;
-                sceneIn >> vertex;
-                vertex.w = 1;
-                vertex = stk.top() * vertex;
-                vertex.wnormalize();
-                stage1Out << vertex << endl;
+        string command;
+        ofstream stage1Out;
+        stage1Out.open(OUTPUT+"stage1.txt");
+        while (sceneIn >> command) {
+            if (command == "triangle") {
+                for (int i = 0; i < 3; i++) {
+                    Point vertex;
+                    sceneIn >> vertex;
+                    vertex.w = 1;
+                    vertex = stk.top() * vertex;
+                    vertex.wnormalize();
+                    stage1Out << vertex << endl;
+                }
+                stage1Out << endl;
+            } else if (command == "translate") {
+                Matrix t;
+                sceneIn >> t.m[0][3] >> t.m[1][3] >> t.m[2][3];
+                stk.top() = stk.top() * t;
+            } else if (command == "scale") {
+                Matrix s;
+                sceneIn >> s.m[0][0] >> s.m[1][1] >> s.m[2][2];
+                stk.top() = stk.top() * s;
+            } else if (command == "rotate") {
+                Matrix r;
+                double angle; Point axis;
+                sceneIn >> angle >> axis;
+                axis.normalize();
+
+                Point C1 = R(Point(1, 0, 0, 0), axis, angle);
+                r.m[0][0] = C1.x, r.m[1][0] = C1.y, r.m[2][0] = C1.z;
+                Point C2 = R(Point(0, 1, 0, 0), axis, angle);
+                r.m[0][1] = C2.x, r.m[1][1] = C2.y, r.m[2][1] = C2.z;
+                Point C3 = R(Point(0, 0, 1, 0), axis, angle);
+                r.m[0][2] = C3.x, r.m[1][2] = C3.y, r.m[2][2] = C3.z;
+
+                stk.top() = stk.top() * r;
+            } else if (command == "push") {
+                stk.push(stk.top());
+            } else if (command == "pop") {
+                stk.pop();
+            } else if (command == "end") {
+                break;
             }
-            stage1Out << endl;
-        } else if (command == "translate") {
-            Matrix t;
-            sceneIn >> t.m[0][3] >> t.m[1][3] >> t.m[2][3];
-            stk.top() = stk.top() * t;
-        } else if (command == "scale") {
-            Matrix s;
-            sceneIn >> s.m[0][0] >> s.m[1][1] >> s.m[2][2];
-            stk.top() = stk.top() * s;
-        } else if (command == "rotate") {
-            Matrix r;
-            double angle; Point axis;
-            sceneIn >> angle >> axis;
-            axis.normalize();
-
-            Point C1 = R(Point(1, 0, 0, 0), axis, angle);
-            r.m[0][0] = C1.x, r.m[1][0] = C1.y, r.m[2][0] = C1.z;
-            Point C2 = R(Point(0, 1, 0, 0), axis, angle);
-            r.m[0][1] = C2.x, r.m[1][1] = C2.y, r.m[2][1] = C2.z;
-            Point C3 = R(Point(0, 0, 1, 0), axis, angle);
-            r.m[0][2] = C3.x, r.m[1][2] = C3.y, r.m[2][2] = C3.z;
-
-            stk.top() = stk.top() * r;
-        } else if (command == "push") {
-            stk.push(stk.top());
-        } else if (command == "pop") {
-            stk.pop();
-        } else if (command == "end") {
-            break;
         }
+        stage1Out.close();
     }
-
     sceneIn.close();
-    stage1Out.close();
+
+    {   // STAGE 2
+        Point l = look - eye;
+        l.normalize();
+        Point r = cross(l, up);
+        r.normalize();
+        Point u = cross(r, l);
+
+        Matrix T;
+        T.m[0][3] = -eye.x, T.m[1][3] = -eye.y, T.m[2][3] = -eye.z;
+
+        Matrix R;
+        R.m[0][0] = r.x, R.m[0][1] = r.y, R.m[0][2] = r.z;
+        R.m[1][0] = u.x, R.m[1][1] = u.y, R.m[1][2] = u.z;
+        R.m[2][0] = -l.x, R.m[2][1] = -l.y, R.m[2][2] = -l.z;
+
+        Matrix V = R * T;
+
+        ifstream stage1In;
+        stage1In.open(OUTPUT+"stage1.txt");
+        ofstream stage2Out;
+        stage2Out.open(OUTPUT+"stage2.txt");
+
+        Point p1, p2, p3;
+        while (stage1In >> p1 >> p2 >> p3) {
+            array< Point , 3 >ar = {p1, p2, p3};
+            for (Point &p : ar) {
+                p.w = 1;
+                p = V * p;
+                p.wnormalize();
+                stage2Out << p << endl;
+            }
+            stage2Out << endl;
+        }
+
+        stage1In.close();
+        stage2Out.close();
+    }
+    
 
     return 0;
 }
